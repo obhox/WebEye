@@ -25,15 +25,28 @@ jobs:
           bun src/index.ts &
           sleep 4
           curl -fsS localhost:3000/api/health
-          curl -fsS localhost:3000/ | grep -q 'CREATE ACCOUNT' \
-            || { echo "landing page missing signup CTA"; exit 1; }
+
+          # Fresh instance: nobody has claimed it yet, so the landing invites
+          # the first signup to claim it.
+          curl -fsS localhost:3000/ | grep -q 'CLAIM THIS INSTANCE' \
+            || { echo "landing page missing bootstrap CTA"; exit 1; }
 
           # Unauthenticated API access must be refused.
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/status)" = "401" \
             || { echo "api not protected"; exit 1; }
 
+          # First signup claims the instance — no invite needed.
           curl -fsS -c /tmp/ci.txt -X POST localhost:3000/signup \
             -d 'email=ci@example.com&password=cipassword123' -o /dev/null
+
+          # Registration is now invite-only: a second signup without a code
+          # must be rejected (400), and the landing must switch to REQUEST ACCESS.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:3000/signup \
+            -d 'email=intruder@example.com&password=intruder1234')" = "400" \
+            || { echo "invite gate not enforced"; exit 1; }
+          curl -fsS localhost:3000/ | grep -q 'REQUEST ACCESS' \
+            || { echo "landing did not close after first signup"; exit 1; }
+
           curl -fsS -b /tmp/ci.txt -X POST localhost:3000/api/sites \
             -H 'content-type: application/json' \
             -d '{"name":"CI","url":"https://example.com","interval_seconds":10}'
