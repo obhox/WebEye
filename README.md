@@ -61,7 +61,8 @@ docker run -d \
 ```
 
 Open <http://localhost:3000> and click **Create account**. The first account
-created claims the instance and becomes admin.
+created claims the instance and becomes admin; after that, new accounts are
+invite-only.
 
 ### Option 2 — Docker Compose
 
@@ -88,10 +89,10 @@ For production from source, use `bun run start` behind the systemd unit below.
 Then create your account, click **Add service**, paste a URL, and you're
 monitoring.
 
-> **Registration is open by default.** Anyone who can reach the URL can create
-> an account (they will only ever see their own services). If the instance is
-> internet-facing and you want it to yourself, sign up immediately after the
-> first deploy, or keep it behind a VPN or your reverse proxy's auth.
+> **Registration is invite-only.** The first person to sign up claims the
+> instance and becomes admin. After that, a new account can only be created
+> with an invite code the admin generates in **Settings → Invites**. People
+> without a code are pointed at your contact email on the landing page.
 
 ---
 
@@ -213,6 +214,7 @@ Everything is environment variables. See [`.env.example`](.env.example).
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP port |
+| `CONTACT_EMAIL` | maintainer's | Email shown on the landing page for access requests |
 | `DB_PATH` | `./data/monitor.db` | SQLite file location (`/data/monitor.db` in Docker) |
 | `DISCORD_WEBHOOK_URL` | — | Discord alerts |
 | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | — | Telegram alerts |
@@ -286,8 +288,16 @@ separate code path that never serialises the private status JSON.
 
 ## Accounts
 
-Registration is open: the **first** account created claims the instance and is
-flagged admin. Every account after that is a normal user.
+Registration is **invite-only**. The **first** account created claims the
+instance and is flagged admin — no invite needed for that one, since there is
+nobody yet to issue it. After that, every new account requires an unused invite
+code, which the admin generates in **Settings → Invites** (with an optional
+note and expiry). Sharing the generated link drops the new user straight onto
+the sign-up form with the code filled in. Invites are single-use; a used code
+is kept as an audit record and can't be revoked or reused.
+
+The email shown on the landing page for access requests is set with the
+`CONTACT_EMAIL` environment variable (defaults to the maintainer's).
 
 Each account owns its own services, notification channels, monitoring defaults
 and public status page. Ownership is enforced in the SQL `WHERE` clause rather

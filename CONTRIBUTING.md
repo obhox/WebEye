@@ -65,6 +65,13 @@ route that trusts an id from the request without the user filter. The scheduler
 is the one exception — it uses `allSites()` because it runs for everyone — and
 it resolves `site.user_id` before sending any alert.
 
+**Registration is invite-gated except for bootstrap.** `inviteRequired()` is
+false only while `userCount() === 0`, so the first signup can claim a fresh
+instance; every signup after that must present an unused invite. The invite is
+redeemed *after* the account row exists and only if `redeemInvite` flips it from
+unused — a losing race rolls the new account back rather than admitting two
+people on one code. Invite admin routes are gated by `adminOnly`.
+
 **Settings are allowlisted.** `PATCH /api/settings` writes into the same
 key/value table that holds `public_page_token`. Only keys in
 `WRITABLE_SETTINGS` (`src/index.ts`) may be written — without that check a

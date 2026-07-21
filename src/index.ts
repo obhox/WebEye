@@ -20,15 +20,21 @@ import {
 } from "./db";
 import {
   clearFailures,
+  createInvite,
   createSession,
   createUser,
   destroySession,
   findUserByEmail,
   findUserByPublicToken,
+  inviteProblem,
+  inviteRequired,
+  listInvites,
   looksLikeEmail,
   noteFailure,
   passwordProblem,
   pruneSessions,
+  redeemInvite,
+  revokeInvite,
   sessionUser,
   throttleCheck,
   userCount,
@@ -52,6 +58,8 @@ import {
 } from "./ui";
 
 const PORT = Number(process.env.PORT ?? 3000);
+/** Shown on the landing page as the way to request access. */
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL ?? "oguntonajoy@gmail.com";
 const SESSION_COOKIE = "webeye_session";
 
 const app = new Hono<{ Variables: { user: User } }>();
@@ -100,7 +108,15 @@ const setSession = (c: any, userId: number) => {
 };
 
 app.get("/signup", (c) =>
-  c.get("user") ? c.redirect("/dashboard") : c.html(authPage("signup")),
+  c.get("user")
+    ? c.redirect("/dashboard")
+    : c.html(
+        authPage("signup", {
+          // An invite link (/signup?invite=…) fills the field for the reader.
+          invite: c.req.query("invite") ?? "",
+          needsInvite: inviteRequired(),
+        }),
+      ),
 );
 
 app.post("/signup", async (c) => {
@@ -108,10 +124,19 @@ app.post("/signup", async (c) => {
   const email = String(form.email ?? "").trim();
   const password = String(form.password ?? "");
   const name = String(form.name ?? "");
+  const invite = String(form.invite ?? "").trim();
 
+  const needsInvite = inviteRequired();
   const fail = (msg: string) =>
-    c.html(authPage("signup", { error: msg, email, name }), 400);
+    c.html(
+      authPage("signup", { error: msg, email, name, invite, needsInvite }),
+      400,
+    );
 
+  if (needsInvite) {
+    const problem = inviteProblem(invite);
+    if (problem) return fail(problem);
+  }
   if (!looksLikeEmail(email)) return fail("Enter a valid email address.");
   const pwProblem = passwordProblem(password);
   if (pwProblem) return fail(pwProblem);
@@ -120,6 +145,17 @@ app.post("/signup", async (c) => {
   }
 
   const id = await createUser({ email, password, name });
+
+  if (needsInvite) {
+    // Redeem *after* the account exists, and only if this request is the one
+    // that flips it from unused — two people racing the same code means the
+    // loser's account is rolled back rather than both getting in.
+    if (redeemInvite(invite, id) === 0) {
+      db.query("DELETE FROM users WHERE id = ?").run(id);
+      return fail("That invite code has already been used.");
+    }
+  }
+
   setSession(c, id);
   return c.redirect("/dashboard");
 });
@@ -186,7 +222,15 @@ app.get("/globe.json", serveFile("globe.json", "application/json; charset=utf-8"
 // --- pages --------------------------------------------------------------
 
 app.get("/", (c) =>
-  c.html(landingPage({ signedIn: !!c.get("user"), accounts: userCount() })),
+  c.html(
+    landingPage({
+      signedIn: !!c.get("user"),
+      // Before anyone has claimed the instance the door is open; after that
+      // the only way in is an invite from the admin.
+      open: userCount() === 0,
+      contact: CONTACT_EMAIL,
+    }),
+  ),
 );
 
 app.get("/dashboard", (c) => {
@@ -229,8 +273,44 @@ app.get("/settings", (c) => {
       ),
       siteCount: listSites(user.id).length,
       publicCount: listPublicSites(user.id).length,
+      // Invites are instance-wide, so only the admin who owns the instance
+      // sees or manages them.
+      invites: user.is_admin ? listInvites() : null,
+      contact: CONTACT_EMAIL,
     }),
   );
+});
+
+// --- invites (admin only) -----------------------------------------------
+
+const adminOnly = (c: any) => {
+  const user = c.get("user");
+  return user?.is_admin ? null : c.json({ error: "admins only" }, 403);
+};
+
+app.post("/api/invites", async (c) => {
+  const denied = adminOnly(c);
+  if (denied) return denied;
+  const b = (await c.req.json().catch(() => ({}))) as {
+    note?: string;
+    days?: unknown;
+  };
+  const days = Number(b.days);
+  const token = createInvite({
+    createdBy: c.get("user").id,
+    note: b.note ?? null,
+    days: Number.isFinite(days) && days > 0 ? Math.min(days, 365) : null,
+  });
+  return c.json({ token, url: `/signup?invite=${token}` }, 201);
+});
+
+app.delete("/api/invites/:token", (c) => {
+  const denied = adminOnly(c);
+  if (denied) return denied;
+  const gone = revokeInvite(c.req.param("token"));
+  return gone
+    ? c.json({ ok: true })
+    : c.json({ error: "Already used invites cannot be revoked." }, 400);
 });
 
 // --- settings api -------------------------------------------------------

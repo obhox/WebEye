@@ -127,6 +127,76 @@ function adoptOrphans(userId: number) {
   }
 }
 
+// --- invites -------------------------------------------------------------
+
+export type Invite = {
+  token: string;
+  created_by: number | null;
+  created_at: number;
+  note: string | null;
+  expires_at: number | null;
+  used_by: number | null;
+  used_at: number | null;
+};
+
+/**
+ * Registration is invite-only, with one exception: while the instance has no
+ * accounts at all, the first signup claims it. Without that escape hatch a
+ * fresh deployment could never be entered, since only an admin can mint an
+ * invite.
+ */
+export const inviteRequired = () => userCount() > 0;
+
+export function createInvite(opts: {
+  createdBy: number;
+  note?: string | null;
+  days?: number | null;
+}) {
+  const token = newToken();
+  db.query(
+    "INSERT INTO invites (token, created_by, created_at, note, expires_at) VALUES (?, ?, ?, ?, ?)",
+  ).run(
+    token,
+    opts.createdBy,
+    now(),
+    opts.note?.trim() || null,
+    opts.days ? now() + opts.days * 86_400_000 : null,
+  );
+  return token;
+}
+
+export const getInvite = (token: string) =>
+  db.query("SELECT * FROM invites WHERE token = ?").get(token) as Invite | null;
+
+export const listInvites = () =>
+  db
+    .query("SELECT * FROM invites ORDER BY used_at IS NOT NULL, created_at DESC")
+    .all() as Invite[];
+
+export const revokeInvite = (token: string) =>
+  db.query("DELETE FROM invites WHERE token = ? AND used_at IS NULL").run(token)
+    .changes;
+
+/** Why an invite can't be used — null when it is good to redeem. */
+export function inviteProblem(token: string): string | null {
+  if (!token.trim()) return "An invite code is required to create an account.";
+  const invite = getInvite(token.trim());
+  // Same message for "never existed" and "already used" so the endpoint can't
+  // be used to probe which codes are real.
+  if (!invite || invite.used_at) return "That invite code is not valid.";
+  if (invite.expires_at && invite.expires_at < now()) {
+    return "That invite code has expired.";
+  }
+  return null;
+}
+
+export const redeemInvite = (token: string, userId: number) =>
+  db
+    .query(
+      "UPDATE invites SET used_by = ?, used_at = ? WHERE token = ? AND used_at IS NULL",
+    )
+    .run(userId, now(), token.trim()).changes;
+
 // --- sessions ------------------------------------------------------------
 
 export function createSession(userId: number) {

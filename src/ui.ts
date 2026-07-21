@@ -11,7 +11,7 @@ import {
   type Site,
   type Webhook,
 } from "./db";
-import type { User } from "./auth";
+import type { Invite, User } from "./auth";
 import { siteState } from "./monitor";
 import { daysLeft } from "./tls";
 
@@ -710,8 +710,74 @@ export function settingsPage(opts: {
   defaultTimeout: number;
   siteCount: number;
   publicCount: number;
+  /** null for non-admins — invites are instance-wide. */
+  invites: Invite[] | null;
+  contact: string;
 }) {
   const publicToken = opts.user.public_token;
+
+  const fmtDay = (t: number) =>
+    new Date(t).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+  const inviteRows =
+    opts.invites
+      ?.map((inv) => {
+        const expired = inv.expires_at && inv.expires_at < Date.now();
+        const status = inv.used_at
+          ? `<span class="pill up">used</span>`
+          : expired
+            ? `<span class="pill down">expired</span>`
+            : `<span class="pill pending">unused</span>`;
+        return `<tr data-token="${esc(inv.token)}">
+      <td class="mono trunc">${esc(inv.token)}</td>
+      <td>${esc(inv.note ?? "—")}</td>
+      <td>${status}</td>
+      <td class="muted nowrap">${
+        inv.used_at
+          ? `used ${fmtDay(inv.used_at)}`
+          : inv.expires_at
+            ? `expires ${fmtDay(inv.expires_at)}`
+            : "no expiry"
+      }</td>
+      <td class="right nowrap">
+        ${
+          inv.used_at
+            ? ""
+            : `<button class="btn ghost invite-copy" data-token="${esc(inv.token)}">Copy link</button>
+               <button class="btn ghost danger invite-revoke" title="Revoke">${I.trash}</button>`
+        }
+      </td>
+    </tr>`;
+      })
+      .join("") ??
+    "";
+
+  const invitesSection = opts.invites
+    ? `
+<section class="panel" id="invites">
+  <h3>Invites</h3>
+  <p class="muted">Registration is closed: a new account can only be created with an unused invite code. Send someone a link and they land on the sign-up form with the code already filled in.</p>
+
+  <form id="invite-form" class="add-form">
+    <input type="text" name="note" placeholder="Who is this for? (optional)">
+    <input type="number" name="days" min="1" max="365" placeholder="Expires in days (optional)">
+    <button class="btn primary" type="submit">${I.plus} Generate invite</button>
+  </form>
+
+  <table class="settings-table">
+    <thead><tr><th>Code</th><th>For</th><th>Status</th><th></th><th></th></tr></thead>
+    <tbody id="invite-rows">${
+      inviteRows ||
+      `<tr><td colspan="5" class="muted">No invites yet. Generate one to let somebody in.</td></tr>`
+    }</tbody>
+  </table>
+  <p class="muted">People without a code are told to email <strong>${esc(opts.contact)}</strong> on the landing page.</p>
+</section>`
+    : "";
   const hookRows =
     opts.webhooks
       .map(
@@ -823,6 +889,8 @@ export function settingsPage(opts: {
     <button class="btn primary" type="submit">Save settings</button>
   </form>
 </section>
+
+${invitesSection}
 
 <section class="panel" id="access">
   <h3>Access</h3>
@@ -984,11 +1052,25 @@ const renderStatement = (s: string) =>
     (_, k: string) => `<i class="rv-chip">${CHIPS[k] ?? ""}</i>`,
   );
 
-export function landingPage(opts: { signedIn: boolean; accounts: number }) {
+export function landingPage(opts: {
+  signedIn: boolean;
+  /** True only until the first account claims the instance. */
+  open: boolean;
+  contact: string;
+}) {
+  const mailto = `mailto:${encodeURIComponent(opts.contact)}?subject=${encodeURIComponent(
+    "WebEye access request",
+  )}&body=${encodeURIComponent(
+    "Hi Joy,\n\nI'd like an invite to WebEye.\n\nWhat I want to monitor:\n",
+  )}`;
+
   const cta = opts.signedIn
     ? `<a class="bp-btn solid" href="/dashboard">OPEN DASHBOARD</a>`
-    : `<a class="bp-btn solid" href="/signup">CREATE ACCOUNT</a>
-       <a class="bp-btn" href="/login">SIGN IN</a>`;
+    : opts.open
+      ? `<a class="bp-btn solid" href="/signup">CLAIM THIS INSTANCE</a>
+         <a class="bp-btn" href="/login">SIGN IN</a>`
+      : `<a class="bp-btn solid" href="${esc(mailto)}">REQUEST ACCESS</a>
+         <a class="bp-btn" href="/login">SIGN IN</a>`;
 
   /**
    * Coordinates live in the canvas's 1600×900 space.
@@ -1132,10 +1214,18 @@ export function landingPage(opts: { signedIn: boolean; accounts: number }) {
     <aside class="bp-card bp-note">
       <header><b>NOT A SAAS — YOUR SERVER</b></header>
       <p>WebEye is open source and runs as a single container with one SQLite
-      file. No queue, no cluster, no per-monitor pricing. Create an account and
-      add your first service in about a minute.</p>
+      file. No queue, no cluster, no per-monitor pricing.</p>
+      <p>${
+        opts.open
+          ? "Nobody has claimed this instance yet — the first account created becomes its admin."
+          : `Accounts on this instance are invite-only. Email <a href="${esc(mailto)}">${esc(opts.contact)}</a> and you'll get a code.`
+      }</p>
       <div class="bp-actions">${cta}</div>
-      <p class="bp-meta">${opts.accounts === 0 ? "NO ACCOUNTS YET — THE FIRST SIGNUP CLAIMS THIS INSTANCE" : `${opts.accounts} ACCOUNT${opts.accounts === 1 ? "" : "S"} ON THIS INSTANCE`}</p>
+      <p class="bp-meta">${
+        opts.open
+          ? "NO ACCOUNTS YET — THE FIRST SIGNUP CLAIMS THIS INSTANCE"
+          : `BY INVITATION — <a href="${esc(mailto)}">${esc(opts.contact.toUpperCase())}</a>`
+      }</p>
     </aside>
   </section>
 </div>
@@ -1187,9 +1277,16 @@ export function landingPage(opts: { signedIn: boolean; accounts: number }) {
 
 export function authPage(
   mode: "login" | "signup",
-  opts: { error?: string; email?: string; name?: string } = {},
+  opts: {
+    error?: string;
+    email?: string;
+    name?: string;
+    invite?: string;
+    needsInvite?: boolean;
+  } = {},
 ) {
   const isSignup = mode === "signup";
+  const needsInvite = isSignup && opts.needsInvite !== false;
 
   return layout(
     isSignup ? "Create account · WebEye" : "Sign in · WebEye",
@@ -1207,13 +1304,22 @@ export function authPage(
 
     <form method="post" action="${isSignup ? "/signup" : "/login"}" class="auth-form">
       ${
+        needsInvite
+          ? `<label class="field"><span>INVITE CODE</span>
+        <input type="text" name="invite" class="mono" value="${esc(opts.invite ?? "")}" required
+               autocomplete="off" spellcheck="false"
+               ${opts.invite ? "" : "autofocus"}></label>`
+          : ""
+      }
+      ${
         isSignup
           ? `<label class="field"><span>NAME (OPTIONAL)</span>
         <input type="text" name="name" value="${esc(opts.name ?? "")}" autocomplete="name"></label>`
           : ""
       }
       <label class="field"><span>EMAIL</span>
-        <input type="email" name="email" value="${esc(opts.email ?? "")}" required autocomplete="email" autofocus></label>
+        <input type="email" name="email" value="${esc(opts.email ?? "")}" required autocomplete="email"
+               ${needsInvite ? "" : "autofocus"}></label>
       <label class="field"><span>PASSWORD</span>
         <input type="password" name="password" required minlength="8"
                autocomplete="${isSignup ? "new-password" : "current-password"}"></label>

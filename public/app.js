@@ -771,6 +771,62 @@ document.getElementById("hook-rows")?.addEventListener("change", async (e) => {
   }
 });
 
+// --- invites (admin settings) ---
+
+document.getElementById("invite-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  const res = await fetch("/api/invites", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ note: data.note, days: data.days }),
+  });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({}));
+    alert("Could not generate invite: " + (error || res.status));
+    return;
+  }
+  const { url } = await res.json();
+  // Put the link on the clipboard immediately — generating one is almost
+  // always followed by sending it to somebody.
+  try {
+    await navigator.clipboard.writeText(location.origin + url);
+  } catch {
+    /* needs a secure origin; the row's Copy button is the fallback */
+  }
+  location.reload();
+});
+
+document.getElementById("invite-rows")?.addEventListener("click", async (e) => {
+  const row = e.target.closest("tr[data-token]");
+  if (!row) return;
+  const token = row.dataset.token;
+
+  const copyBtn = e.target.closest(".invite-copy");
+  if (copyBtn) {
+    const link = `${location.origin}/signup?invite=${token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      flash(copyBtn, "Copied");
+    } catch {
+      prompt("Copy this invite link:", link);
+    }
+    return;
+  }
+
+  if (e.target.closest(".invite-revoke")) {
+    if (!confirm("Revoke this invite? The code stops working immediately.")) return;
+    const res = await fetch(`/api/invites/${encodeURIComponent(token)}`, {
+      method: "DELETE",
+    });
+    if (res.ok) row.remove();
+    else {
+      const { error } = await res.json().catch(() => ({}));
+      alert(error || "Could not revoke");
+    }
+  }
+});
+
 // --- edit a service (detail page) ---
 
 const editPanel = document.getElementById("edit-panel");

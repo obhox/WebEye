@@ -101,6 +101,16 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
+CREATE TABLE IF NOT EXISTS invites (
+  token      TEXT PRIMARY KEY,
+  created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  note       TEXT,
+  expires_at INTEGER,
+  used_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  used_at    INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   key     TEXT    NOT NULL,

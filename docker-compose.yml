@@ -11,7 +11,9 @@ services:
     volumes:
       - webeye-data:/data
     environment:
-      # All optional. Access is controlled by user accounts, not env vars.
+      # Access is invite-only. This is just the contact email shown on the
+      # landing page for people requesting an invite.
+      - CONTACT_EMAIL=${CONTACT_EMAIL:-oguntonajoy@gmail.com}
       # Alerts (optional)
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
