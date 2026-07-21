@@ -1,0 +1,39 @@
+{
+  "name": "webeye",
+  "version": "1.0.0",
+  "description": "Simple open-source website monitoring — uptime, response time, SSL expiry, incidents and public status pages.",
+  "author": "Obhox",
+  "license": "MIT",
+  "homepage": "https://github.com/obhox/webeye",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/obhox/webeye.git"
+  },
+  "bugs": {
+    "url": "https://github.com/obhox/webeye/issues"
+  },
+  "keywords": [
+    "monitoring",
+    "uptime",
+    "uptime-monitor",
+    "status-page",
+    "self-hosted",
+    "ssl-monitoring",
+    "bun",
+    "sqlite"
+  ],
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^7.0.2"
+  }
+}

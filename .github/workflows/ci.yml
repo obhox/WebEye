@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Smoke test — sign up, add a site, verify it gets checked
+        run: |
+          bun src/index.ts &
+          sleep 4
+          curl -fsS localhost:3000/api/health
+          curl -fsS localhost:3000/ | grep -q 'CREATE ACCOUNT' \
+            || { echo "landing page missing signup CTA"; exit 1; }
+
+          # Unauthenticated API access must be refused.
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/status)" = "401" \
+            || { echo "api not protected"; exit 1; }
+
+          curl -fsS -c /tmp/ci.txt -X POST localhost:3000/signup \
+            -d 'email=ci@example.com&password=cipassword123' -o /dev/null
+          curl -fsS -b /tmp/ci.txt -X POST localhost:3000/api/sites \
+            -H 'content-type: application/json' \
+            -d '{"name":"CI","url":"https://example.com","interval_seconds":10}'
+          sleep 12
+          curl -fsS -b /tmp/ci.txt localhost:3000/api/status | grep -q '"state":"up"' \
+            || { echo "site never reached up state"; exit 1; }
+          echo "smoke test passed"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t webeye:ci .
+      - name: Run container and check health
+        run: |
+          docker run -d --name webeye-ci -p 3000:3000 webeye:ci
+          sleep 8
+          curl -fsS localhost:3000/api/health
+          docker rm -f webeye-ci

@@ -1,0 +1,27 @@
+services:
+  webeye:
+    # Use the prebuilt image, or comment it out and uncomment `build` to
+    # compile from source.
+    image: ghcr.io/obhox/webeye:latest
+    # build: .
+    container_name: webeye
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - webeye-data:/data
+    environment:
+      # All optional. Access is controlled by user accounts, not env vars.
+      # Alerts (optional)
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - GENERIC_WEBHOOK_URL=${GENERIC_WEBHOOK_URL:-}
+      # Tuning (optional)
+      - SSL_WARN_DAYS=${SSL_WARN_DAYS:-14}
+      - FAILURES_BEFORE_DOWN=${FAILURES_BEFORE_DOWN:-2}
+      - CONCURRENCY=${CONCURRENCY:-10}
+      - RETAIN_RAW_DAYS=${RETAIN_RAW_DAYS:-7}
+
+volumes:
+  webeye-data:
