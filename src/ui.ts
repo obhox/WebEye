@@ -584,7 +584,7 @@ export function sitePage(site: Site, s: SiteStatus, user: User) {
     `${site.name} · WebEye`,
     shell(`
 <div class="sec-head" style="margin-top:0">
-  <a class="btn ghost" href="/">${I.back} Back</a>
+  <a class="btn ghost" href="/dashboard">${I.back} Back</a>
   <h2>${esc(site.name)}</h2>
   <span class="pill ${s.state}">${s.state}</span>
   <div class="grow"></div>
@@ -814,7 +814,7 @@ export function settingsPage(opts: {
     "Settings · WebEye",
     shell(`
 <div class="sec-head" style="margin-top:0">
-  <a class="btn ghost" href="/">${I.back} Back</a>
+  <a class="btn ghost" href="/dashboard">${I.back} Back</a>
   <h2>Settings</h2>
 </div>
 
