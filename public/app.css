@@ -700,16 +700,29 @@ code {
 .bp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 12px 4px; }
 
 .bp-btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   border: 1px solid var(--ink);
   border-radius: 999px;
   padding: 8px 18px;
   font-size: 11px; letter-spacing: .08em;
   font-family: inherit;
 }
+.bp-btn svg { width: 14px; height: 14px; }
 .bp-btn:hover { background: rgba(127,127,127,.12); }
 .bp-btn.solid { background: var(--ink); color: var(--bg); }
 .bp-btn.solid:hover { opacity: .85; background: var(--ink); }
+
+/* Icon-only link in the top bar, sized to sit beside the theme toggle. */
+.bp-icon {
+  display: inline-grid; place-items: center;
+  width: 30px; height: 30px;
+  border-radius: 6px;
+  color: var(--ink);
+}
+.bp-icon:hover { background: rgba(127,127,127,.12); }
+.bp-icon svg { width: 17px; height: 17px; }
 
 /* Phones and small tablets: the drafting canvas stops being readable, so the
    diagram collapses to normal flow and the leader lines are dropped — they
