@@ -293,6 +293,7 @@ export function card(s: SiteStatus, isPublic = false, showHeader = true) {
 function layout(title: string, body: string, noindex = false) {
   return `<!doctype html>
 <html lang="en"><head>
+<script defer src="https://a.falorb.com/t.js" data-project="prj_f052fed23a35a1393deb9eecdaa1c4c2"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
