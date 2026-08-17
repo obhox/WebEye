@@ -290,10 +290,15 @@ export function card(s: SiteStatus, isPublic = false, showHeader = true) {
 
 // --- shell ---------------------------------------------------------------
 
-function layout(title: string, body: string, noindex = false) {
+function layout(title: string, body: string, noindex = false, user?: User) {
   return `<!doctype html>
 <html lang="en"><head>
 <script defer src="https://a.falorb.com/t.js" data-project="prj_f052fed23a35a1393deb9eecdaa1c4c2"></script>
+${
+  user
+    ? `<script>window.falorb && window.falorb.identify(${JSON.stringify(String(user.id))}, ${JSON.stringify({ email: user.email })});</script>`
+    : ""
+}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
@@ -559,6 +564,8 @@ ${sharePanel}
 </main>
 <footer class="foot">Auto-refreshes every 15s · <span id="stamp"></span></footer>
 <script src="/app.js?v=${ASSET_V}"></script>`, { user }),
+    false,
+    user,
   );
 }
 
@@ -675,6 +682,8 @@ export function sitePage(site: Site, s: SiteStatus, user: User) {
   </table>
 </section>
 <script src="/app.js?v=${ASSET_V}"></script>`, { user }),
+    false,
+    user,
   );
 }
 
@@ -905,6 +914,8 @@ ${invitesSection}
 
 <footer class="foot"><span>WebEye by Obhox · <a href="https://github.com/obhox/webeye" target="_blank" rel="noopener noreferrer">Documentation &amp; source</a></span></footer>
 <script src="/app.js?v=${ASSET_V}"></script>`, { user: opts.user }),
+    false,
+    opts.user,
   );
 }
 
