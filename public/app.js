@@ -569,6 +569,7 @@ if (addBtn && addForm) {
       addForm.reset();
       addForm.hidden = true;
       refresh();
+      if (window.falorb) { window.falorb.track("monitor_added"); }
     } else {
       const { error } = await res.json().catch(() => ({}));
       alert("Could not add site: " + (error || res.status));
