@@ -615,7 +615,10 @@ async function shareAction(method, url) {
 
 document
   .getElementById("create-public")
-  ?.addEventListener("click", () => shareAction("POST", "/api/public-page"));
+  ?.addEventListener("click", () => {
+    if (window.falorb) window.falorb.track("status_page_published");
+    shareAction("POST", "/api/public-page");
+  });
 
 document.getElementById("revoke-public")?.addEventListener("click", () => {
   if (confirm("Revoke the public status page? The existing link stops working."))
@@ -719,8 +722,10 @@ document.getElementById("hook-form")?.addEventListener("submit", async (e) => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (res.ok) location.reload();
-  else {
+  if (res.ok) {
+    if (window.falorb) window.falorb.track("alert_channel_connected", { type: body.type });
+    location.reload();
+  } else {
     const { error } = await res.json().catch(() => ({}));
     alert("Could not add channel: " + (error || res.status));
   }
